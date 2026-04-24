@@ -1,0 +1,70 @@
+import java.util.Arrays;
+import java.util.HashSet;
+
+class Solution {
+    public int maximizeSquareHoleArea(int n, int m, int[] hBars, int[] vBars) {
+        int hMax = longestConsecutiveBySorting(hBars, 1, n + 1);
+        int vMax = longestConsecutiveBySorting(vBars, 1, m + 1);
+        int side = Math.min(hMax + 1, vMax + 1);
+        return side * side;
+    }
+
+    // Method A: sort the array in-place and scan for longest consecutive streak.
+    // This uses no extra memory proportional to n/m (only O(1) extra).
+    private int longestConsecutiveBySorting(int[] arr, int minVal, int maxVal) {
+        if (arr == null || arr.length == 0) return 0;
+
+        Arrays.sort(arr);
+        int best = 0;
+        int cur = 0;
+        int prev = Integer.MIN_VALUE;
+
+        for (int x : arr) {
+            // ignore out-of-range entries (defensive)
+            if (x < minVal || x > maxVal) continue;
+
+            if (prev == Integer.MIN_VALUE) {
+                // first valid element
+                cur = 1;
+                prev = x;
+            } else if (x == prev) {
+                // duplicate -> skip (don't reset)
+                continue;
+            } else if (x == prev + 1) {
+                cur++;
+                prev = x;
+            } else {
+                // gap
+                best = Math.max(best, cur);
+                cur = 1;
+                prev = x;
+            }
+            best = Math.max(best, cur);
+        }
+        return best;
+    }
+
+    // Method B: HashSet-based linear scanning (optional). Use when you prefer O(k) time.
+    // Kept for reference — uses O(k) extra memory (k = number of unique removed bars).
+    private int longestConsecutiveByHashSet(int[] arr, int minVal, int maxVal) {
+        if (arr == null || arr.length == 0) return 0;
+        HashSet<Integer> set = new HashSet<>();
+        for (int x : arr) {
+            if (x >= minVal && x <= maxVal) set.add(x);
+        }
+
+        int best = 0;
+        for (int x : set) {
+            if (!set.contains(x - 1)) { // start of a sequence
+                int cur = 1;
+                int y = x + 1;
+                while (set.contains(y)) {
+                    cur++;
+                    y++;
+                }
+                best = Math.max(best, cur);
+            }
+        }
+        return best;
+    }
+}
