@@ -1,0 +1,196 @@
+class Solution {
+    // DLX node
+    private static class Node {
+        Node L, R, U, D;
+        Column C;      // reference to column header
+        int rowId;     // custom id to decode (r,c,d) when this row is chosen
+
+        Node() {
+            L = R = U = D = this;
+        }
+    }
+
+    // Column header (extends Node)
+    private static class Column extends Node {
+        int size;      // number of nodes in this column
+        int name;      // column index (for debug or mapping)
+        Column(int n) {
+            super();
+            size = 0;
+            name = n;
+            C = this;
+        }
+    }
+
+    private Column header;
+    private Node[] solution; // holds nodes chosen for solution, length max = 81
+    private boolean solved = false;
+
+    public void solveSudoku(char[][] board) {
+        // build DLX structure
+        header = new Column(-1);
+        int COLS = 324; // 4 * 81
+        Column[] columns = new Column[COLS];
+        // create column headers and link them horizontally
+        Column prev = header;
+        for (int i = 0; i < COLS; i++) {
+            columns[i] = new Column(i);
+            prev.R = columns[i];
+            columns[i].L = prev;
+            prev = columns[i];
+        }
+        prev.R = header;
+        header.L = prev;
+
+        // helper to link new node into column bottom
+        java.util.List<Node> allNodes = new java.util.ArrayList<>(10000);
+
+        // mapping from (r,c,d) to rowId:
+        // rowId = r*81 + c*9 + (d-1)
+        for (int r = 0; r < 9; r++) {
+            for (int c = 0; c < 9; c++) {
+                if (board[r][c] != '.') {
+                    int d = board[r][c] - '0';
+                    addDLXRow(r, c, d, columns, allNodes);
+                } else {
+                    for (int d = 1; d <= 9; d++) {
+                        addDLXRow(r, c, d, columns, allNodes);
+                    }
+                }
+            }
+        }
+
+        // link columns vertically (they're linked as we inserted nodes)
+        // prepare solution array
+        solution = new Node[81];
+        // apply given constraints: For already filled cells we need to cover the corresponding columns
+        // Actually since we only added rows consistent with givens, that's enough; search will pick right rows.
+
+        // Start search
+        search(0);
+
+        // Map solution rows back to board (solution[] holds Node for each chosen row)
+        if (!solved) return; // should not happen with valid inputs
+        for (int i = 0; i < 81; i++) {
+            Node n = solution[i];
+            if (n == null) break;
+            int rowId = n.rowId;
+            int r = rowId / 81;
+            int c = (rowId % 81) / 9;
+            int d = (rowId % 9) + 1;
+            board[r][c] = (char) ('0' + d);
+        }
+    }
+
+    // Adds a DLX row for placement (r,c,d) into the appropriate 4 columns
+    private void addDLXRow(int r, int c, int d, Column[] columns, java.util.List<Node> allNodes) {
+        int rowId = r * 81 + c * 9 + (d - 1);
+
+        int cellCol = r * 9 + c;                         // 0..80
+        int rowNumCol = 81 + r * 9 + (d - 1);            // 81..161
+        int colNumCol = 162 + c * 9 + (d - 1);           // 162..242
+        int boxIndex = (r / 3) * 3 + (c / 3);           // 0..8
+        int boxNumCol = 243 + boxIndex * 9 + (d - 1);    // 243..323
+
+        int[] colIdx = new int[] { cellCol, rowNumCol, colNumCol, boxNumCol };
+
+        Node first = null;
+        Node prev = null;
+        for (int idx = 0; idx < 4; idx++) {
+            Column col = columns[colIdx[idx]];
+            Node nd = new Node();
+            nd.C = col;
+            nd.rowId = rowId;
+            // insert node at bottom of column (above header)
+            nd.U = col.U;
+            nd.D = col;
+            col.U.D = nd;
+            col.U = nd;
+            col.size++;
+
+            if (first == null) first = nd;
+            if (prev != null) {
+                prev.R = nd;
+                nd.L = prev;
+            }
+            prev = nd;
+            allNodes.add(nd);
+        }
+        // close the circular row links
+        first.L = prev;
+        prev.R = first;
+    }
+
+    // Choose column with minimal size (heuristic) to reduce branching
+    private Column chooseColumn() {
+        Column best = null;
+        int minSize = Integer.MAX_VALUE;
+        for (Node n = header.R; n != header; n = n.R) {
+            Column c = (Column) n;
+            if (c.size < minSize) {
+                minSize = c.size;
+                best = c;
+                if (minSize == 0) break;
+            }
+        }
+        return best;
+    }
+
+    // Cover column c
+    private void cover(Column c) {
+        c.R.L = c.L;
+        c.L.R = c.R;
+        for (Node i = c.D; i != c; i = i.D) {
+            for (Node j = i.R; j != i; j = j.R) {
+                j.D.U = j.U;
+                j.U.D = j.D;
+                j.C.size--;
+            }
+        }
+    }
+
+    // Uncover column c (reverse of cover)
+    private void uncover(Column c) {
+        for (Node i = c.U; i != c; i = i.U) {
+            for (Node j = i.L; j != i; j = j.L) {
+                j.C.size++;
+                j.D.U = j;
+                j.U.D = j;
+            }
+        }
+        c.R.L = c;
+        c.L.R = c;
+    }
+
+    // Recursive search
+    private void search(int k) {
+        if (header.R == header) {
+            // all columns covered -> solution found
+            solved = true;
+            return;
+        }
+        Column c = chooseColumn();
+        if (c == null || c.size == 0) return; // no way to proceed
+
+        cover(c);
+        for (Node r = c.D; r != c && !solved; r = r.D) {
+            solution[k] = r;
+            // cover columns for nodes in this row
+            for (Node j = r.R; j != r; j = j.R) {
+                cover(j.C);
+            }
+
+            search(k + 1);
+
+            // if solved, short-circuit (do not undo further)
+            if (solved) return;
+
+            // backtrack: uncover in reverse order
+            for (Node j = r.L; j != r; j = j.L) {
+                uncover(j.C);
+            }
+            solution[k] = null;
+        }
+        uncover(c);
+    }
+}
