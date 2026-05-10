@@ -1,32 +1,43 @@
-import java.util.*;
+import java.util.HashMap;
 
-public class TwoSum {
+public class TwoSumOptimized {
 
-    public static int[] twoSum(int[] arr, int target) {
+    public static int[] twoSum(int[] nums, int target) {
 
+        // Create HashMap
         HashMap<Integer, Integer> map = new HashMap<>();
 
-        for (int i = 0; i < arr.length; i++) {
+        // Traverse array
+        for (int i = 0; i < nums.length; i++) {
 
-            int complement = target - arr[i];
+            // Current number
+            int current = nums[i];
 
-            if (map.containsKey(complement)) {
-                return new int[]{map.get(complement), i};
+            // Number we need
+            int needed = target - current;
+
+            // Check if needed number exists
+            if (map.containsKey(needed)) {
+
+                // Return indices
+                return new int[]{map.get(needed), i};
             }
 
-            map.put(arr[i], i);
+            // Store current number and index
+            map.put(current, i);
         }
 
+        // No answer found
         return new int[]{-1, -1};
     }
 
     public static void main(String[] args) {
 
-        int[] arr = {2, 7, 11, 15};
+        int[] nums = {2, 7, 11, 15};
         int target = 9;
 
-        int[] result = twoSum(arr, target);
+        int[] result = twoSum(nums, target);
 
-        System.out.println("Indices: " + result[0] + ", " + result[1]);
+        System.out.println(result[0] + " " + result[1]);
     }
 }
